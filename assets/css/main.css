@@ -1,0 +1,27 @@
+@import "loader.css";
+
+/* весь контент обертаю у wrapper */
+.wrapper{
+    min-height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* регулює ширину контенту та вирівнює його, header, main, footer обгортаю в  _container*/
+._container{
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 0 15px;
+}
+
+/* MAIN --------------------- */
+/*  flex: 1 1 auto; займає доступний простір в контейнері Flexbox, збільшуючись або зменшуючись за необхідності, при цьому базовий розмір елемента визначається його вмістом. */
+.main{
+    flex: 1 1 auto;
+}
+
+/* Footer ----------------------*/
+.footer{
+
+}

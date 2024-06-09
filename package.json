@@ -1,0 +1,40 @@
+{
+  "name": "nuxt-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@firebase/app-types": "^0.9.0",
+    "@mdi/font": "^7.4.47",
+    "@pinia/nuxt": "^0.5.1",
+    "@vuelidate/core": "^2.0.3",
+    "@vuelidate/validators": "^2.0.4",
+    "@vuepic/vue-datepicker": "^8.4.0",
+    "bootstrap": "^5.3.3",
+    "firebase": "^10.6.0",
+    "firebase-admin": "^12.1.0",
+    "firebase-functions": "^4.8.1",
+    "jquery": "^3.7.1",
+    "nuxt": "^3.11.1",
+    "nuxt3-select2": "^0.1.29",
+    "pinia": "^2.1.7",
+    "vee-validate": "^4.12.6",
+    "vue": "^3.4.21",
+    "vue-router": "^4.3.0",
+    "vuefire": "^3.1.23"
+  },
+  "devDependencies": {
+    "nuxt3-leaflet": "^1.0.12",
+    "vite-plugin-vuetify": "^2.0.3",
+    "vuetify": "^3.5.16"
+  },
+  "overrides": {
+    "vue": "latest"
+  }
+}
