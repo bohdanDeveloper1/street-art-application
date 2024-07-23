@@ -10,9 +10,9 @@
           </button>
           <div class="collapse navbar-collapse" id="navbarNavDropdown">
             <ul class="navbar-nav  w-100">
-<!--              <li class="nav-item" v-if="userRole">-->
-<!--                <NuxtLink to="/savedActivitiesPage" class="nav-link">Saved activities</NuxtLink>-->
-<!--              </li>-->
+                <!--              <li class="nav-item" v-if="userRole">-->
+                <!--                <NuxtLink to="/savedActivitiesPage" class="nav-link">Saved activities</NuxtLink>-->
+                <!--              </li>-->
               <li class="nav-item dropdown" v-if="userRole === 'artist'">
                 <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                   Your activities

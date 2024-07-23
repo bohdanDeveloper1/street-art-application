@@ -366,6 +366,11 @@ function setAdditionalActivityImage(event){
   }
 }
 
+function scrollToTop() {
+  document.documentElement.scrollTop = 0; // For modern browsers
+  document.body.scrollTop = 0; // For older browsers
+}
+
 async function showCityOnMap(){
   try {
     const cityData = activityCity.value.value;
@@ -395,7 +400,6 @@ async function showCityAndStreetOnMap(){
   if(activityCity.value.value !== undefined && activityCity.value.value !== ''){
     try {
       const cityData = activityCity.value.value;
-      // Розділення рядка за допомогою коми та пробілу
       const [city, district] = cityData.split(", ");
       // запит до API для отримання координат міста та вулиці
       const response  = await fetch(`https://geocode.maps.co/search?q=${activityStreet.value.value.trim()}+${city}+${district}+Poland&api_key=659450539ff1f762862410sea796255`);
@@ -415,21 +419,24 @@ async function showCityAndStreetOnMap(){
         activityHouseNumber.value.value = '';
         mapErrorMessageTitle.value = '';
         mapErrorMessage.value = '';
-      }else{
+      }else{ // якщо не знайдено координати
         mapErrorMessageTitle.value = `No such street in ${activityCity.value.value}`;
-        mapErrorMessage.value = `Please enter valid name of street.`;
+        mapErrorMessage.value = `Please enter valid street name.`;
+        scrollToTop();
       }
     } catch (error) {
       // Обробка помилок, наприклад, у випадку невдалих запитів до API
       console.log('Error during fetching data for mapCenter from geocode.maps API:', error);
       mapErrorMessageTitle.value = `No such street in ${activityCity.value.value}`;
-      mapErrorMessage.value = `Please enter valid name of street.`;
+      mapErrorMessage.value = `Please enter valid street name.`;
+      scrollToTop();
     }
-  }else{
+  }else{ // якщо не обрано місто
     activityCity.value.value = '';
     activityStreet.value.value = '';
     mapErrorMessageTitle.value = `Unselected city`;
-    mapErrorMessage.value = 'Select city, than input street name'
+    mapErrorMessage.value = 'Select city, then input street name';
+    scrollToTop();
   }
 }
 
@@ -437,7 +444,6 @@ async function showCityAndStreetAndHouseOnMap(){
   if(activityCity.value.value !== undefined && activityCity.value.value !== '' && activityStreet.value.value !== undefined && activityStreet.value.value !== ''){
     try {
       const cityData = activityCity.value.value;
-      // Розділення рядка за допомогою коми та пробілу
       const [city, district] = cityData.split(", ");
       // запит до API для отримання координат міста та вулиці
       const response  = await fetch(`https://geocode.maps.co/search?street=${activityStreet.value.value.trim()}+${activityHouseNumber.value.value.trim()}&city=${city}&country=Poland&api_key=659450539ff1f762862410sea796255`);
@@ -459,26 +465,41 @@ async function showCityAndStreetAndHouseOnMap(){
       }else{
         mapErrorMessageTitle.value = `No such house number in ${activityCity.value.value}, ${activityStreet.value.value}`;
         mapErrorMessage.value = 'Please enter valid house number';
+        scrollToTop();
       }
     } catch (error) {
       // Обробка помилок, наприклад, у випадку невдалих запитів до API
       console.log('Error during fetching data for mapCenter from geocode.maps API:', error);
       mapErrorMessageTitle.value = `No such house number in ${activityCity.value.value}, ${activityStreet.value.value}`;
       mapErrorMessage.value = 'Please enter valid house number';
+      scrollToTop();
     }
   }else{
     activityCity.value.value = '';
     activityStreet.value.value = '';
     activityHouseNumber.value.value = '';
     mapErrorMessageTitle.value = 'Unselected city or street';
-    mapErrorMessage.value = 'Please select city and street, than enter valid house number';
+    mapErrorMessage.value = 'Please select city and street, then enter valid house number';
+    scrollToTop();
   }
 }
 
-const updateMarkerLatLng = (event) => {
+async function updateDataAfterMarkerDragged(lat, lon){
+  try {
+    const response  = await fetch(`https://geocode.maps.co/reverse?lat=${lat}&lon=${lon}&api_key=659450539ff1f762862410sea796255`);
+    const data = await response.json();
+    activityStreet.value.value = data.address.road;
+    activityHouseNumber.value.value = data.address.house_number ? data.address.house_number : "";
+  } catch (error) {
+    console.log('Error during dragging the marker:', error);
+  }
+}
+
+const updateMarkerLatLng = async (event) => {
   const updatedMarkerCoordinates = event.target.getLatLng();
   markerLat.value = updatedMarkerCoordinates.lat;
   markerLng.value = updatedMarkerCoordinates.lng;
+  await updateDataAfterMarkerDragged(updatedMarkerCoordinates.lat, updatedMarkerCoordinates.lng);
 };
 </script>
 

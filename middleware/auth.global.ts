@@ -1,14 +1,47 @@
-export default defineNuxtRouteMiddleware((to, from) => {
-    const userRoleCookie = useCookie('userRoleCookie');
-    const userRole = userRoleCookie.value;
+import { doc, getDoc } from "firebase/firestore";
 
-    // якщо незалогований користувач переходить до 'savedActivitiesPage' || 'logOutPage'
-    if(to.path == '/savedActivitiesPage' && !userRole || to.path == '/logOutPage' && !userRole) {
-        return navigateTo('/userComponent');
+export default defineNuxtRouteMiddleware(async (to, from) => {
+    const router = useRouter();
+    const { $firestore } = useNuxtApp();
+    const userUidCookie = useCookie('userUidCookie');
+    const userRole = ref<string | null>();
+
+    async function getUserRole(userUid) {
+        if (!userUid) {
+            return router.push('/userComponent');
+        }
+        const docRef = doc($firestore, "users", userUid);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+            userRole.value = docSnap.data().role;
+        } else {
+            userRole.value = null;
+            return navigateTo('/userComponent');
+        }
     }
 
-    // якщо не artist переходить до 'admin/addActivity' || admin/myActivities'
-    if(to.path == '/admin/addActivity' && userRole !== 'artist' || to.path == '/admin/myActivities' && userRole !== 'artist'){
-        return navigateTo('/userComponent');
+    async function myMiddleware() {
+        const userUid = userUidCookie.value;
+
+        if (to.path == '/savedActivitiesPage' || to.path == '/logOutPage') {
+            await getUserRole(userUid);
+            if (userRole.value == null) {
+                return navigateTo('/userComponent');
+            }
+        }
+
+        if (to.path.startsWith('/admin')) {
+            await getUserRole(userUid);
+            if (userRole.value != 'artist') {
+                return navigateTo('/userComponent');
+            }
+        }
     }
+
+    await myMiddleware();
 });
+
+
+
+

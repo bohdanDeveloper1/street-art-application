@@ -5,7 +5,7 @@
          <div class="card-body activity">
            <div class="activity-category roboto-regular">{{props.category}}</div>
            <h4 class="activity-title">{{props.name}}</h4>
-           <p class="activity-date roboto-regular">{{formattedDate}}</p>
+           <p class="activity-date roboto-regular">{{formattedDate}}, </p>
            <p class="activity-address roboto-regular">{{props.cityName}}, {{props.streetName}} {{props.houseNumber}}</p>
            <!-- see details btn -->
             <div class="activity-buttons">
@@ -75,17 +75,18 @@ async function showActivityDetails(){
 
 const formatDate = (timestamp: number): string => {
   const date = new Date(timestamp);
+
   const options: object = {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
-    year: 'numeric'
+    year: 'numeric',
   };
 
   return date.toLocaleDateString('en-US', options);
 };
 
-// Обчислювана властивість, яка містить отформатовану дату
+// Обчислювана властивість, яка містить відформатовану дату
 const formattedDate = computed(() => formatDate(props.dateTimestamp));
 
 onBeforeMount(async () => {
