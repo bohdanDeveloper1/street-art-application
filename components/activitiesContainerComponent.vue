@@ -1,42 +1,7 @@
-<template>
-  <div class="_container">
-    <h2 class="other-activities-title" v-if="props.cityName !== '' && activitiesData.length > 0">Other activities in {{props.cityName}}</h2>
-    <div class="cards-container" v-if="activitiesData.length > 0">
-      <activity-component
-          v-for="activity in activitiesData"
-          :key="activity.id"
-          :activityId="activity.id"
-          :mainPhotoRef="activity.mainPhotoRef"
-          :name="activity.name"
-          :cityAdmin="activity.cityAdmin"
-          :cityName="activity.cityName"
-          :streetName="activity.streetName"
-          :houseNumber="activity.houseNumber"
-          :category="activity.category"
-          :dateTimestamp="activity.dateTimestamp"
-      />
-    </div>
-    <div class="spinner center" v-else>
-      <div class="spinner-blade"></div>
-      <div class="spinner-blade"></div>
-      <div class="spinner-blade"></div>
-      <div class="spinner-blade"></div>
-      <div class="spinner-blade"></div>
-      <div class="spinner-blade"></div>
-      <div class="spinner-blade"></div>
-      <div class="spinner-blade"></div>
-      <div class="spinner-blade"></div>
-      <div class="spinner-blade"></div>
-      <div class="spinner-blade"></div>
-      <div class="spinner-blade"></div>
-    </div>
-  </div>
-</template>
-
 <script setup lang="ts">
 import { collection, query, where, getDocs } from "firebase/firestore";
 
-interface activityData{
+interface IActivityData{
   id: string,
   mainPhotoRef: string,
   name: string,
@@ -45,43 +10,35 @@ interface activityData{
   streetName:string,
   houseNumber:  string,
   category: string,
-  dateTimestamp: number,
+  activityDates: {start: number, end: number}[],
+  activityEnd: number
 }
 
 const props = defineProps<{
   cityName?: string
   activityId?: string
 }>();
-
-// Firestore
 const { $firestore } = useNuxtApp();
-const timestampNow = ref<number>();
-const activitiesData = reactive<activityData[]>([]);
+const activitiesData = reactive<IActivityData[]>([]);
 
-function getTimestampNow(){
-  const currentDate = new Date();
-  timestampNow.value = currentDate.getTime();
-}
-
-// get activities from Firestore
 async function getActivities(): Promise<void>{
   let q;
   let querySnapshot;
   const citiesRef = collection($firestore, "activities");
   // якщо користувач обрав місто, то фільтрую активності:
   if(props.cityName !== '' && props.activityId !== ''){
-    q = query(citiesRef, where("cityName", "==", props.cityName), where("dateTimestamp", ">", timestampNow.value));
+    // todo: activityDates.start not work
+    q = query(citiesRef, where("cityName", "==", props.cityName), where("activityEnd", ">", new Date().getTime()));
 
     const data = await getDocs(q);
     querySnapshot = data.docs.filter(doc => doc.id !== props.activityId);
   }else { // інакше показую всі активності
-    q = query(citiesRef, where("dateTimestamp", ">=", timestampNow.value));
-
+    q = query(citiesRef, where("activityEnd", ">", new Date().getTime()));
     querySnapshot = await getDocs(q);
   }
+
   querySnapshot.forEach((doc: any) => {
-    const activity = {
-      // Фото, назви активності, назва міста, назва вулиці і номер будинку, категорії,  дати, часу.
+    const activity: IActivityData = {
       id: doc.id,
       mainPhotoRef: doc.data().mainPhotoRef,
       name: doc.data().name,
@@ -90,16 +47,39 @@ async function getActivities(): Promise<void>{
       streetName: doc.data().streetName,
       houseNumber:  doc.data().houseNumber,
       category: doc.data().category,
-      dateTimestamp: doc.data().dateTimestamp,
+      activityDates: doc.data().activityDates,
+      activityEnd: doc.data().activityEnd
     };
     activitiesData.push(activity);
   });
 }
+
 onBeforeMount(async () => {
-  getTimestampNow();
   await getActivities();
 })
 </script>
+
+<template>
+  <div class="_container">
+    <h2 class="other-activities-title" v-if="props.cityName !== '' && activitiesData.length > 0">Other activities in {{props.cityName}}</h2>
+    <div class="cards-container" v-if="activitiesData.length > 0">
+      <activity-component  v-for="activity in activitiesData" :key="activity.id"
+          :activityId="activity.id"
+          :mainPhotoRef="activity.mainPhotoRef"
+          :name="activity.name"
+          :cityAdmin="activity.cityAdmin"
+          :cityName="activity.cityName"
+          :streetName="activity.streetName"
+          :houseNumber="activity.houseNumber"
+          :category="activity.category"
+          :activityDates="activity.activityDates"
+      />
+    </div>
+    <div v-else>
+      <page-loader-component></page-loader-component>
+    </div>
+  </div>
+</template>
 
 <style scoped>
 .other-activities-title{
@@ -110,9 +90,9 @@ onBeforeMount(async () => {
 }
 
 .cards-container{
+  margin-top: 25px;
   display: flex;
   flex-wrap: wrap;
-  margin-top: 25px;
-  justify-content: space-evenly;
+  justify-content: center;
 }
 </style>

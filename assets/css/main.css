@@ -1,5 +1,3 @@
-@import "loader.css";
-
 /* весь контент обертаю у wrapper */
 .wrapper{
     min-height: 100vh;
@@ -13,6 +11,10 @@
     max-width: 1300px;
     margin: 0 auto;
     padding: 0 15px;
+}
+
+.no-scroll {
+    overflow: hidden;
 }
 
 /* MAIN --------------------- */

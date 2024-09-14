@@ -5,13 +5,17 @@
 
 <script setup>
 import { getAuth, signOut } from "firebase/auth";
+import { useAddCommentStore } from "~/stores/addComment";
 
 const router = useRouter();
+const addCommentStore = useAddCommentStore();
 
 function logOut(){
   const auth = getAuth();
   resetCookies();
   signOut(auth).then(() => {
+    addCommentStore.isUser = false;
+    addCommentStore.showAddCommentComponent = false;
     router.push('/userComponent');
   }).catch((error) => {
     // An error happened.

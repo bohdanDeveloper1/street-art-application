@@ -13,6 +13,7 @@
     "@firebase/app-types": "^0.9.0",
     "@mdi/font": "^7.4.47",
     "@pinia/nuxt": "^0.5.1",
+    "@vee-validate/nuxt": "^4.13.2",
     "@vuelidate/core": "^2.0.3",
     "@vuelidate/validators": "^2.0.4",
     "@vuepic/vue-datepicker": "^8.4.0",

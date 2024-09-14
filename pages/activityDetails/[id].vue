@@ -1,111 +1,18 @@
-<!-- todo: uncomment   save activity btn -->
-<!-- make functions to save activity -->
-
-<template>
-<div class="_container">
-  <div class="content" v-if="activityPhotos.length > 0">
-    <div class="activity-title">
-      <h2 class="activity-title-header">{{activityData.name}}</h2>
-      <div class="activity-title-category roboto-regular">
-        {{activityData.category}}
-      </div>
-    </div>
-    <div class="carousel-card-block">
-      <div class="carousel-container">
-        <v-carousel class="my-carousel">
-          <v-carousel-item v-for="photo in activityPhotos" :key="photo"
-                           :src="photo"
-                           :alt="photo"
-                           cover
-          ></v-carousel-item>
-        </v-carousel>
-      </div>
-      <div class="info-card">
-        <div class="card-item">
-          <img src="/images/calendarIcon.svg" alt="Time:">
-          <div class="activity-date roboto-bold">{{formattedDate}}</div>
-        </div>
-        <div class="card-item">
-          <img src="/images/locationIcon.svg" alt="Location:">
-          <div class="activity-address roboto-regular">{{activityData.cityName}}, {{activityData.streetName}} {{activityData.houseNumber}}</div>
-        </div>
-        <div class="artist-card-container">
-            <img src="/images/artist_test_photo.jpg" alt="artist_test_photo">
-            <div class="see-artist-info-btn_container">
-              <button class="see-artist-info-btn roboto-medium">
-                See artist
-              </button>
-            </div>
-        </div>
-<!--        <div class="add-to-favourite-btn-container">-->
-<!--          <v-btn-->
-<!--              class="add-to-favourite-btn"-->
-<!--          >-->
-<!--            save activity-->
-<!--          </v-btn>-->
-<!--        </div>-->
-      </div>
-    </div>
-    <div class="activity-description">
-      <h4>
-        Activity description:
-      </h4>
-      <div class="roboto-regular">
-        {{activityData.description}}
-      </div>
-    </div>
-    <div class="expansion-panels-container">
-      <v-expansion-panels>
-        <v-expansion-panel
-            title="About artist"
-            text="There is not information about artist yet"
-        >
-        </v-expansion-panel>
-        <v-expansion-panel
-            title="Comments"
-            text="There is not comments yet"
-        >
-        </v-expansion-panel>
-      </v-expansion-panels>
-    </div>
-    <div class="map-container">
-      <LMap class="map" :zoom="16" :center="[activityData.coordinatesLat, activityData.coordinatesLng]">
-        <LTileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution="&amp;copy; <a href=&quot;https://www.openstreetmap.org/&quot;>OpenStreetMap</a> contributors"
-            layer-type="base"
-            name="OpenStreetMap"
-        />
-        <LMarker :lat-lng="[activityData.coordinatesLat, activityData.coordinatesLng]" />
-      </LMap>
-    </div>
-    <div class="activities-container-component-container">
-      <activities-container-component :cityName="activityData.cityName" :activity-id="activityData.activityId"></activities-container-component>
-    </div>
-  </div>
-  <div class="spinner center" v-else>
-    <div class="spinner-blade"></div>
-    <div class="spinner-blade"></div>
-    <div class="spinner-blade"></div>
-    <div class="spinner-blade"></div>
-    <div class="spinner-blade"></div>
-    <div class="spinner-blade"></div>
-    <div class="spinner-blade"></div>
-    <div class="spinner-blade"></div>
-    <div class="spinner-blade"></div>
-    <div class="spinner-blade"></div>
-    <div class="spinner-blade"></div>
-    <div class="spinner-blade"></div>
-  </div>
-</div>
-</template>
-
+<!-- todo:
+  переробити перевірку логування користувача
+  зробити логіку для збереження активностей до улюблених
+ -->
 <script setup lang="ts">
 import { doc, getDoc } from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { getStorage, ref as storageRef, getDownloadURL  } from "firebase/storage";
-import ActivitiesContainerComponent from "~/components/activitiesContainerComponent.vue";
+import { getAuth } from "firebase/auth";
+import FirebaseAuthComponent from "~/components/auth/FirebaseAuthComponent.vue";
+import { useAddCommentStore } from "~/stores/addComment";
+import { storeToRefs } from 'pinia'
+import CommentRating from "~/components/activityDetails/CommentRating.vue";
 
-interface ActivityDataInterface {
+interface IActivityData {
   activityId: string,
   additionalPhotosRefs: string[],
   artistUid: string,
@@ -114,7 +21,7 @@ interface ActivityDataInterface {
   cityName: string,
   coordinatesLat: number,
   coordinatesLng: number,
-  dateTimestamp: number,
+  activityDates: {start: number, end: number}[],
   description: string,
   houseNumber: string,
   mainPhotoRef: string,
@@ -124,11 +31,25 @@ interface ActivityDataInterface {
 interface artistDataInterface{
   name: string,
 }
+interface IActivityComment{
+  authorName: string,
+  ratingInStars: number,
+  message: string,
+  date: number
+}
+interface IDateList{
+  start: string,
+  end: string,
+}
 
 const { $firestore } = useNuxtApp();
 const storage = getStorage();
 const route = useRoute();
-const activityData = reactive<ActivityDataInterface>({
+const addCommentStore = useAddCommentStore();
+const { showFirebaseAuthComponent, showAddCommentComponent } = storeToRefs(addCommentStore);
+const userUid = ref<string>('');
+
+const activityData = reactive<IActivityData>({
     activityId: '',
     additionalPhotosRefs: [],
     artistUid: '',
@@ -137,7 +58,7 @@ const activityData = reactive<ActivityDataInterface>({
     cityName: '',
     coordinatesLat: 0,
     coordinatesLng: 0,
-    dateTimestamp: 0,
+    activityDates: [],
     description: '',
     houseNumber: '',
     mainPhotoRef: '',
@@ -148,9 +69,51 @@ const artistData = reactive<artistDataInterface>({
   name: '',
 });
 const activityPhotos = reactive<string[]>([]);
+const activityComments = reactive<IActivityComment[]>([]);
+const dateNow = new Date();
 
+// rating variables
+const showRatingLoader = ref(false);
+const showActivityComments = ref(false);
+const oneStarRating = ref(0);
+const twoStarRating = ref(0);
+const threeStarRating = ref(0);
+const fourStarRating = ref(0);
+const fiveStarRating = ref(0);
+const ratingSum = ref(0);
+const averageRating = ref(0);
 
-// get chosen activity from Firestore
+// filteredDatesStartEnd дати початку та кінця активності, які > new Date().
+const filteredDatesStartEnd = computed(() => {
+  const datesStartEnd = reactive<IDateList[]>([]);
+
+  for(let i = 0; i < activityData.activityDates.length; i++){
+    if(activityData.activityDates[i].end > dateNow.getTime()){
+      const dateStart = new Date(activityData.activityDates[i].start);
+      const dateEnd = new Date(activityData.activityDates[i].end);
+
+      let minutes: string = '';
+      if(dateStart.getMinutes() < 10){
+        minutes = `0${dateStart.getMinutes()}`
+      }else{
+        minutes = dateStart.getMinutes().toString()
+      }
+      const timeStart = dateStart.toDateString() + ', ' + dateStart.getHours() + ':' + minutes;
+
+      if(dateEnd.getMinutes() < 10){
+        minutes = `0${dateEnd.getMinutes()}`
+      }else{
+        minutes = dateEnd.getMinutes().toString()
+      }
+      const timeEnd = dateEnd.toDateString() + ', ' + dateEnd.getHours() + ':' + minutes;
+
+      datesStartEnd.push({start: timeStart, end: timeEnd});
+    }
+  }
+
+  return datesStartEnd;
+})
+
 async function getActivityData(){
   const docRef = doc($firestore, "activities", `${route.params.id}`);
   const docSnap = await getDoc(docRef);
@@ -164,7 +127,7 @@ async function getActivityData(){
     activityData.cityName = docSnap.data().cityName;
     activityData.coordinatesLat = docSnap.data().coordinatesLat;
     activityData.coordinatesLng = docSnap.data().coordinatesLng;
-    activityData.dateTimestamp = docSnap.data().dateTimestamp;
+    activityData.activityDates = docSnap.data().activityDates;
     activityData.description = docSnap.data().description;
     activityData.houseNumber = docSnap.data().houseNumber;
     activityData.mainPhotoRef = docSnap.data().mainPhotoRef;
@@ -206,33 +169,259 @@ async function getActivityPhotos(){
   }
 }
 
-const formatDate = (timestamp: number): string => {
-  const date = new Date(timestamp);
-  const options: object = {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  };
+async function getActivityComments(){
+  showRatingLoader.value = true;
 
-  return date.toLocaleDateString('en-US', options);
-};
+  // оновлення значень для рейтингу
+  activityComments.length = 0;
+  oneStarRating.value = 0;
+  twoStarRating.value = 0;
+  threeStarRating.value = 0;
+  fourStarRating.value = 0;
+  fiveStarRating.value = 0;
+  ratingSum.value = 0;
+  averageRating.value = 0;
 
-// Обчислювана властивість, яка містить отформатовану дату
-const formattedDate = computed(() => formatDate(activityData.dateTimestamp));
+  const q = query(collection($firestore, "comments"), where("activityUid", "==", `${activityData.activityId}`));
+  const querySnapshot = await getDocs(q);
+
+  querySnapshot.forEach((doc) => {
+    const activityComment: IActivityComment = {
+      authorName: doc.data().authorName,
+      ratingInStars: doc.data().ratingInStars,
+      message: doc.data().message,
+      date: doc.data().date
+    }
+
+    if(activityComment.ratingInStars === 1) oneStarRating.value++;
+    if(activityComment.ratingInStars === 2) twoStarRating.value++;
+    if(activityComment.ratingInStars === 3) threeStarRating.value++;
+    if(activityComment.ratingInStars === 4) fourStarRating.value++;
+    if(activityComment.ratingInStars === 5) fiveStarRating.value++;
+    ratingSum.value += activityComment.ratingInStars;
+
+    activityComments.push(activityComment)
+  });
+
+  averageRating.value = ratingSum.value / activityComments.length;
+  showRatingLoader.value = false;
+}
+
+async function addActivityComment(){
+  const auth = getAuth();
+  const user = auth.currentUser;
+
+  if (user !== null && user.emailVerified) {
+    addCommentStore.showAddCommentComponent = true;
+    userUid.value = user.uid;
+  }else{
+    addCommentStore.logInDuringAddingComment = true;
+    addCommentStore.showFirebaseAuthComponent = true;
+  }
+}
+
+// no scroll watchers
+watch(showFirebaseAuthComponent, (newValue) =>{
+  if(newValue === true){
+    document.documentElement.classList.add('no-scroll');
+  }else{
+    document.documentElement.classList.remove('no-scroll');
+  }
+})
 
 onBeforeMount(async () => {
   await getActivityData();
   await getActivityPhotos();
-})
-
-//width: 850px;
+  await getActivityComments();
+});
 </script>
 
+<template>
+  <div>
+    <div v-if="showFirebaseAuthComponent" class="auth-component-container">
+      <div class="auth-component">
+        <firebase-auth-component></firebase-auth-component>
+      </div>
+    </div>
+    <div class="content" v-if="activityPhotos.length > 0">
+      <div class="activity-title">
+        <h2 class="activity-title-header">{{activityData.name}}</h2>
+        <div class="activity-title-category roboto-regular">
+          {{activityData.category}}
+        </div>
+      </div>
+      <div class="carousel-card-block">
+        <div class="carousel-container">
+          <v-carousel class="my-carousel">
+            <v-carousel-item v-for="photo in activityPhotos" :key="photo"
+                             :src="photo"
+                             :alt="photo"
+                             cover
+            ></v-carousel-item>
+          </v-carousel>
+        </div>
+        <div class="info-card">
+          <div class="card-dates-item">
+            <img src="/images/calendarIcon.svg" alt="Time:">
+            <div class="activity-dates">
+              <div class="roboto-bold" style="margin: 8px 0;">
+                {{filteredDatesStartEnd[0].start}}
+              </div>
+              <div class="start-end-dates-container">
+                <div class="start-end-dates-info" style="margin-bottom: 6px;">Also at:</div>
+                <div v-for="item in filteredDatesStartEnd">
+                  <div>
+                    <div style="margin-bottom: 4px;"><span class="roboto-bold">Start:</span> {{item.start}}</div>
+                    <div><span class="roboto-bold">End:</span> {{item.end}}</div>
+                  </div>
+                  <hr style="margin-top: 4px">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="card-item">
+            <img src="/images/locationIcon.svg" alt="Location:">
+            <div class="activity-address roboto-bold">{{activityData.cityName}}, {{activityData.streetName}} {{activityData.houseNumber}}</div>
+          </div>
+          <div class="artist-card-container">
+            <img src="/images/artist_test_photo.jpg" alt="artist_test_photo">
+            <div class="see-artist-info-btn_container">
+              <button class="see-artist-info-btn roboto-medium">
+                See artist
+              </button>
+            </div>
+          </div>
+          <!--        <div class="add-to-favourite-btn-container">-->
+          <!--          <v-btn-->
+          <!--              class="add-to-favourite-btn"-->
+          <!--          >-->
+          <!--            save activity-->
+          <!--          </v-btn>-->
+          <!--        </div>-->
+        </div>
+      </div>
+      <div class="activity-description">
+        <h4>
+          Activity description:
+        </h4>
+        <div class="roboto-regular">
+          {{activityData.description}}
+        </div>
+      </div>
+      <div class="expansion-panels-container">
+        <v-expansion-panels>
+          <v-expansion-panel
+              title="About artist"
+              text="There is not information about artist yet"
+          >
+          </v-expansion-panel>
+        </v-expansion-panels>
+      </div>
+      <div class="map-container">
+        <LMap class="map" :zoom="16" :center="[activityData.coordinatesLat, activityData.coordinatesLng]">
+          <LTileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution="&amp;copy; <a href=&quot;https://www.openstreetmap.org/&quot;>OpenStreetMap</a> contributors"
+              layer-type="base"
+              name="OpenStreetMap"
+          />
+          <LMarker :lat-lng="[activityData.coordinatesLat, activityData.coordinatesLng]" />
+        </LMap>
+      </div>
+      <!--    <div class="activities-container-component-container">-->
+      <!--      <activities-container-component :cityName="activityData.cityName" :activity-id="activityData.activityId"></activities-container-component>-->
+      <!--    </div>-->
+      <div class="comments-container">
+        <!--  Show loader   -->
+        <div v-if="showRatingLoader === true" class="show-rating-loader">
+          <loader-component width="40px" height="40px"></loader-component>
+        </div>
+        <!--  Show statistics  -->
+        <div v-if="activityComments.length > 0 && showRatingLoader === false">
+          <h4>Activity comments:</h4>
+          <comment-rating
+              :oneStarRating="oneStarRating"
+              :twoStarRating="twoStarRating"
+              :threeStarRating="threeStarRating"
+              :fourStarRating="fourStarRating"
+              :fiveStarRating="fiveStarRating"
+              :numberOfComments="activityComments.length"
+              :averageRating="averageRating"
+          ></comment-rating>
+          <button v-if="showAddCommentComponent === false" class="add-comment-btn" @click="addActivityComment">
+            Add comment
+          </button>
+        </div>
+        <!--  Show no comments -->
+        <div v-if="activityComments.length === 0">
+          <h4> No comments yet</h4>
+          <button v-if="showAddCommentComponent === false" class="add-comment-btn" @click="addActivityComment">
+            Add comment
+          </button>
+        </div>
+        <!--  Show add comment  -->
+        <div v-if="showAddCommentComponent === true" class="add-comment-container">
+          <activity-details-add-comment
+              :user-uid="userUid"
+              :activity-uid="activityData.activityId"
+              :artist-uid="activityData.artistUid"
+              @get-comments="getActivityComments"
+          ></activity-details-add-comment>
+        </div>
+        <!--  Show see comments btn  -->
+        <div v-if="activityComments.length > 0 && showRatingLoader === false">
+          <button  class="see-comments-btn" @click="showActivityComments = !showActivityComments">
+            See comments
+          </button>
+        </div>
+        <!--   Comments  components   -->
+        <div v-if="showActivityComments"  v-for="(item, index) in activityComments" :key="index">
+          <activity-details-comment
+              :author-name="item.authorName"
+              :rating-in-stars="item.ratingInStars"
+              :message="item.message"
+          ></activity-details-comment>
+        </div>
+      </div>
+    </div>
+    <div v-else>
+     <page-loader-component></page-loader-component>
+    </div>
+    <div v-if="showFirebaseAuthComponent" class="overlay" @click="addCommentStore.showFirebaseAuthComponent = false"></div>
+  </div>
+</template>
+
 <style scoped>
+.comments-container{
+  background-color: white;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 60px;
+}
+
+.auth-component-container{
+  display: flex;
+  justify-content: center;
+}
+
+.auth-component{
+  position: fixed;
+  z-index: 1001;
+}
+
 .content{
   max-width: 1080px;
   margin: 26px auto 0;
+}
+
+.overlay {
+  position: fixed;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0,0,0,0.4);
+  z-index: 1000;
+  top: 0;
+  left: 0;
 }
 
 /* activity title  -------------------------------------------------------*/
@@ -270,10 +459,9 @@ onBeforeMount(async () => {
 /* card styles  -----------------------------------------------------*/
 .info-card{
   width: 350px;
-  max-height: 500px;
   border-radius: 12px;
   border: 1px solid darkgrey;
-  padding: 15px 25px 15px 25px;
+  padding: 16px;
 }
 
 .card-item{
@@ -282,7 +470,13 @@ onBeforeMount(async () => {
   margin-bottom: 8px;
 }
 
-.card-item > img{
+.card-dates-item{
+  display: flex;
+  margin-bottom: 8px;
+  align-items: start;
+}
+
+.card-item > img, .card-dates-item > img{
   margin-right: 8px;
 }
 
@@ -350,6 +544,30 @@ onBeforeMount(async () => {
 .activities-container-component-container {
   max-width: 1080px;
   margin-bottom: 30px;
+}
+
+/* loader ----------------------------------------------------------------------------*/
+.show-rating-loader{
+  display: flex;
+  justify-content: center;
+  padding: 80px 0;
+}
+
+/* comments  ---------------------------------------------------------------------------*/
+.add-comment-btn{
+  width: 100%;
+  margin-top: 8px;
+  padding: 16px 0;
+  border-radius: 5px;
+  border: 1px solid lightgrey;
+}
+
+.see-comments-btn{
+  width: 100%;
+  margin-bottom: 24px;
+  padding: 16px 0;
+  border-radius: 5px;
+  border: 1px solid lightgrey;
 }
 
 /* make RWD ----------------------------------------------------------------------------*/

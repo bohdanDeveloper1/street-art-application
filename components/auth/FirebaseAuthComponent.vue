@@ -3,10 +3,10 @@
    <div class="auth-component-container">
      <div class="auth-options">
        <div class="log-in-option">
-         <a href="#" class="log-in-link" :class="{ activeLink: ifLogInComponentActive }" @click="changeComponentToLogin"><p>Log in</p></a>
+         <div class="log-in-link" :class="{ activeLink: ifLogInComponentActive }" @click="changeComponentToLogin"><p>Log in</p></div>
        </div>
        <div class="auth-option">
-         <a href="#" class="auth-link" :class="{ activeLink: ifAuthComponentActive }" @click="changeComponentToAuth"><p>Create an account</p></a>
+         <div class="auth-link" :class="{ activeLink: ifAuthComponentActive }" @click="changeComponentToAuth"><p>Create an account</p></div>
        </div>
      </div>
      <div class="current-component">
@@ -69,6 +69,10 @@ function changeComponentToLogin(){
  .log-in-link, .auth-link{
    color: black;
  }
+
+.log-in-link:hover, .auth-link:hover{
+  cursor: pointer;
+}
 
  .activeLink{
    font-weight: 700;

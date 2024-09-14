@@ -15,9 +15,8 @@ a:focus,a:active{outline: none;}
 nav,footer,header,aside{display: block;}
 
 html,body{
-  background-color: rgb(244, 247, 248, 0.1);
-
-  /*background-color: rgb(250, 249, 246);*/
+  /*background-color: rgb(244, 247, 248, 0.1);*/
+  background-color: rgb(250, 249, 246);
   height: 100%;
   width: 100%;
   line-height: 1;

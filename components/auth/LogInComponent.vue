@@ -1,3 +1,118 @@
+<script setup>
+import {getAuth, signInWithEmailAndPassword, signOut} from "firebase/auth";
+import {useField, useForm} from "vee-validate";
+import {doc, getDoc} from "firebase/firestore";
+import { useAddCommentStore } from "~/stores/addComment";
+
+const { $firestore } = useNuxtApp();
+const router = useRouter();
+const addCommentStore = useAddCommentStore();
+
+// regex validation
+const uppercaseRegex = /[A-Z]/; // Велика літера
+const lowercaseRegex = /[a-z]/; // Мала літера
+const digitRegex = /\d/; // Цифра
+
+// validation rules
+const { handleSubmit } = useForm({
+  validationSchema: {
+    email (value) {
+      if (/.+@.+\..+/.test(value)) return true
+
+      return 'Please enter valid email.'
+    },
+    password(value) {
+      if (value?.length < 8 || !uppercaseRegex.test(value) || !lowercaseRegex.test(value) || !digitRegex.test(value)){
+        return 'Password must have: uppercase letter, lowercase letter, one digit, min 8 characters';
+      }
+
+      return true;
+    }
+  },
+})
+const email = useField('email');
+const password = useField('password');
+const loginErrorMessage = ref('');
+const isProblemWithLogIn = ref(false);
+const isLoading = ref(false);
+
+const submit = handleSubmit(async (values) =>{
+  await logIn();
+})
+
+async function logIn(){
+  try{
+    isLoading.value = true;
+    const auth = getAuth();
+
+    // sign in
+    const userCredential = await signInWithEmailAndPassword(auth, email.value.value, password.value.value);
+    const user = userCredential.user;
+
+    // якщо користуач створив акаунт та підтвердив мейл
+    if (user && user.emailVerified === true) {
+      isProblemWithLogIn.value = false;
+      loginErrorMessage.value = '';
+
+      // отримую роль користувача
+      const userData = await getUserData(user.uid);
+
+      // set cookies
+      const userUidCookie = useCookie('userUidCookie');
+      const userEmailCookie = useCookie('userEmailCookie');
+      const userNameCookie = useCookie('userNameCookie');
+      const userRoleCookie = useCookie('userRoleCookie');
+      userUidCookie.value = user.uid;
+      userEmailCookie.value = user.email;
+      userNameCookie.value = userData.name;
+      userRoleCookie.value = userData.role;
+
+      if(addCommentStore.logInDuringAddingComment){
+        addCommentStore.showFirebaseAuthComponent = false;
+        addCommentStore.showAddCommentComponent = true;
+      }else {
+        await router.push('/');
+        isLoading.value = false;
+      }
+    }
+    //  якщо користуач створив акаунт та не підтвердив мейл
+    else if (user && user.emailVerified === false) {
+      signOut(auth).then(() => {
+        isProblemWithLogIn.value = true;
+        loginErrorMessage.value = 'Please verify your e-mail to log in';
+        isLoading.value = false;
+      });
+    }else{
+      signOut(auth).then(() => {
+        isProblemWithLogIn.value = true;
+        loginErrorMessage.value = 'Invalid e-mail or password';
+      }).catch((error) => {
+        // An error happened.
+        console.error('Sign out error:', error);
+        isLoading.value = false;
+      });
+    }
+  }catch (error){
+    console.log(error);
+    isProblemWithLogIn.value = true;
+    loginErrorMessage.value = 'Invalid e-mail or password';
+    isLoading.value = false;
+  }
+}
+
+async function getUserData(userUid){
+  const docRef = doc($firestore, "users", userUid);
+  const docSnap = await getDoc(docRef);
+
+  if (docSnap.exists()) {
+    return docSnap.data()
+  } else {
+    console.log("User does`t exist");
+    return null;
+  }
+}
+</script>
+
 <template>
   <div class="_container">
     <v-alert
@@ -34,115 +149,18 @@
 
         <!-- Submit -->
         <v-btn
+            :loading="isLoading"
             class="me-4 submit-button"
             type="submit"
             @click="submit"
         >
+
           log in
         </v-btn>
       </form>
     </div>
   </div>
 </template>
-
-<script setup>
-import {getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut} from "firebase/auth";
-import {useField, useForm} from "vee-validate";
-import {doc, getDoc} from "firebase/firestore";
-
-const auth = getAuth();
-const { $firestore } = useNuxtApp();
-const router = useRouter();
-const uppercaseRegex = /[A-Z]/; // Велика літера
-const lowercaseRegex = /[a-z]/; // Мала літера
-const digitRegex = /\d/; // Цифра
-// validation rules
-const { handleSubmit } = useForm({
-  validationSchema: {
-    email (value) {
-      if (/.+@.+\..+/.test(value)) return true
-
-      return 'Please enter valid email.'
-    },
-    password(value) {
-      if (value?.length < 8 || !uppercaseRegex.test(value) || !lowercaseRegex.test(value) || !digitRegex.test(value)){
-        return 'Password must have: uppercase letter, lowercase letter, one digit, min 8 characters';
-      }
-
-      return true;
-    }
-  },
-})
-const email = useField('email');
-const password = useField('password');
-const loginErrorMessage = ref('');
-const isProblemWithLogIn = ref(false);
-
-const submit = handleSubmit(async (values) =>{
-  await logIn();
-})
-
-async function logIn(){
-  try{
-    await signInWithEmailAndPassword(auth, email.value.value, password.value.value);
-    onAuthStateChanged(auth, async (user) => {
-      // якщо користуач створив акаунт та підтвердив мейл
-      if (user && user.emailVerified === true) {
-        isProblemWithLogIn.value = false;
-        loginErrorMessage.value = '';
-
-        // отримую роль користувача
-        const userData = await getUserData(user.uid);
-
-        // set cookies
-        const userUidCookie = useCookie('userUidCookie');
-        const userEmailCookie = useCookie('userEmailCookie');
-        const userNameCookie = useCookie('userNameCookie');
-        const userRoleCookie = useCookie('userRoleCookie');
-        userUidCookie.value = user.uid;
-        userEmailCookie.value = user.email;
-        userNameCookie.value = userData.name;
-        userRoleCookie.value = userData.role;
-
-        // redirect
-        router.push('/');
-      }
-      //  якщо користуач створив акаунт та не підтвердив мейл
-      else if (user && user.emailVerified === false) {
-        signOut(auth).then(() => {
-          isProblemWithLogIn.value = true;
-          loginErrorMessage.value = 'Please verify your e-mail to log in';
-        });
-      }
-      //  якщо користуач ввів неправильні дані або не створив акаунт
-      else { // якщо користувач не підтвердив мейл, то signOut
-        signOut(auth).then(() => {
-          isProblemWithLogIn.value = true;
-          loginErrorMessage.value = 'Invalid e-mail or password';
-        }).catch((error) => {
-          // An error happened.
-          console.error('Sign out error:', error);
-        });
-      }
-    });
-  }catch (error){
-    isProblemWithLogIn.value = true;
-    loginErrorMessage.value = 'Invalid e-mail or password';
-  }
-}
-
-async function getUserData(userUid){
-  const docRef = doc($firestore, "users", userUid);
-  const docSnap = await getDoc(docRef);
-
-  if (docSnap.exists()) {
-    return docSnap.data()
-  } else {
-    console.log("User does`t exist");
-    return null;
-  }
-}
-</script>
 
 <style scoped>
 .submit-button{

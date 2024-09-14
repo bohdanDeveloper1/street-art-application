@@ -44,6 +44,7 @@
 </template>
 
 <script setup lang="ts">
+// отримати userRole
 const userRoleCookie = useCookie('userRoleCookie');
 const userRole = ref(userRoleCookie.value);
 
